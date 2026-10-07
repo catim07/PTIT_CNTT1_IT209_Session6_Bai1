@@ -1,68 +1,66 @@
-# Bài 1: Quản lý tính năng với Git Feature Branching (Gitflow Basic)
+# Bài 1: Quản lý người dùng giới hạn và Truyền tải dữ liệu qua SFTP trên Windows
 
 ## Mục tiêu
-- Nắm vững mô hình phân nhánh Feature Branching cơ bản trong môi trường DevOps.
-- Tạo nhánh tính năng, phát triển mã nguồn độc lập và tích hợp (merge) trở lại nhánh chính `main`.
+- Tạo tài khoản người dùng giới hạn `sftp-user` phục vụ tác vụ truyền nhận tệp tin từ xa.
+- Kết nối và truyền tải tệp tin nhật ký (`/var/log/app-backup/backup-check.log`) an toàn từ VPS Linux về máy tính Windows thông qua WinSCP / Bitvise SFTP Client.
 
 ---
 
-## 1. Bối cảnh & Các bước thực hiện
+## 1. Thiết lập trên Máy chủ Linux (VPS)
 
-### Bước 1: Khởi tạo Repository và nhánh `main`
+### Bước 1: Khởi tạo tài khoản `sftp-user` không thuộc nhóm sudo
 ```bash
-git init
-echo "# Feature Branching Demo" > README.md
-git add README.md
-git commit -m "Initial commit on main"
+sudo adduser sftp-user
 ```
+*(Nhập mật khẩu an toàn và hoàn tất khởi tạo user)*
 
-### Bước 2: Tạo nhánh tính năng mới `feature/login`
+### Bước 2: Tạo thư mục log giả lập và gán quyền truy cập
 ```bash
-git checkout -b feature/login
-```
+sudo mkdir -p /var/log/app-backup/
+sudo touch /var/log/app-backup/backup-check.log
+sudo bash -c 'echo "Backup status: SUCCESS at $(date)" > /var/log/app-backup/backup-check.log'
 
-Phát triển tính năng đăng nhập trên nhánh `feature/login`:
-```bash
-echo "function login(user, pass) { return true; }" > login.js
-git add login.js
-git commit -m "feat: implement user login function"
-```
-
-### Bước 3: Tích hợp (Merge) nhánh tính năng vào `main`
-Chuyển về nhánh `main` và thực hiện merge:
-```bash
-git checkout main
-git merge feature/login -m "Merge branch 'feature/login' into main"
+# Phân quyền hạn chế
+sudo chown -R root:sftp-user /var/log/app-backup
+sudo chmod 750 /var/log/app-backup
+sudo chmod 640 /var/log/app-backup/backup-check.log
 ```
 
 ---
 
-## 2. Kiểm tra Kết quả Lịch sử Git
+## 2. Thao tác trên máy tính Windows (SFTP Client)
 
+### Cấu hình kết nối Bitvise SSH Client / WinSCP:
+- **Host / IP:** `103.x.x.x` (IP Public của VPS)
+- **Port:** `22` (hoặc Port SSH tùy chỉnh)
+- **Username:** `sftp-user`
+- **Password:** `<Mật_khẩu_sftp-user>`
+
+### Thực hiện tải File:
+1. Mở **New SFTP Window** trong phần mềm Client.
+2. Truy cập đường dẫn Remote: `/var/log/app-backup/`.
+3. Tải tệp `backup-check.log` về thư mục máy tính Windows cục bộ.
+
+---
+
+## 3. Nhật ký kiểm tra (Verification Logs)
+
+### Lệnh kiểm tra trên VPS:
 ```bash
-git log --graph --oneline --all
+$ id sftp-user
+uid=1002(sftp-user) gid=1002(sftp-user) groups=1002(sftp-user)
+
+$ ls -l /var/log/app-backup/backup-check.log
+-rw-r----- 1 root sftp-user 45 Oct 7 10:30 /var/log/app-backup/backup-check.log
 ```
 
-**Kết quả màn hình `git log`:**
+### Nội dung file log tải về trên Windows:
 ```text
-*   a1b2c3d (HEAD -> main) Merge branch 'feature/login' into main
-|\  
-| * e4f5g6h (feature/login) feat: implement user login function
-|/  
-* 9f8e7d6 Initial commit on main
-```
-
----
-
-## 3. Dọn dẹp Nhánh sau khi Merge
-
-Sau khi tính năng được tích hợp thành công vào nhánh chính:
-```bash
-git branch -d feature/login
+Backup status: SUCCESS at Wed Oct  7 10:30:15 UTC 2026
 ```
 
 ---
 
 ## 4. Kết luận
-- Việc phân nhánh giúp phát triển các tính năng độc lập, tránh gây ảnh hưởng trực tiếp đến mã nguồn sản xuất trên nhánh `main`.
-- Quy trình merge chuẩn giúp duy trì lịch sử phát triển mạch lạc và dễ dàng theo vết thay đổi.
+- User `sftp-user` không có quyền `sudo`, đảm bảo nguyên tắc bảo mật tối thiểu (Principle of Least Privilege).
+- File log đã được truyền tải an toàn và nguyên vẹn từ máy chủ về Windows qua giao thức SFTP.
